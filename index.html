@@ -1,0 +1,999 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>KitchenSync</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        :root {
+            --bg-primary: #f7fafc;
+            --bg-secondary: #ffffff;
+            --bg-tertiary: #edf2f7;
+            --bg-header: #2f855a;
+            --text-primary: #1a202c;
+            --text-secondary: #4a5568;
+            --text-header: #ffffff;
+            --border-primary: #e2e8f0;
+            --bg-button: #2f855a;
+            --bg-button-hover: #276749;
+            --bg-yellow-indicator: #f6e05e;
+            --text-yellow-indicator: #1a202c;
+            --expired: #ff0000;
+            --warning-one-month: #ff6200;
+            --warning-three-months: #ffcc00;
+            --beyond-three-months: #0066ff;
+        }
+
+        [data-theme="dark"] {
+            --bg-primary: #1a202c;
+            --bg-secondary: #2d3748;
+            --bg-tertiary: #4a5568;
+            --bg-header: #1a202c;
+            --text-primary: #e2e8f0;
+            --text-secondary: #a0aec0;
+            --text-header: #e2e8f0;
+            --border-primary: #4a5568;
+            --bg-button: #4a5568;
+            --bg-button-hover: #718096;
+            --bg-yellow-indicator: #b7791f;
+            --text-yellow-indicator: #f7fafc;
+            --expired: #ff6666;
+            --warning-one-month: #ff8540;
+            --warning-three-months: #ffdb4d;
+            --beyond-three-months: #4d94ff;
+        }
+
+        body {
+            font-family: Tahoma, Arial, sans-serif;
+            background-color: var(--bg-primary);
+            color: var(--text-primary);
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal-content {
+            background: var(--bg-secondary);
+            padding: 1.5rem;
+            border-radius: 0.5rem;
+            max-width: 90%;
+            max-height: 80%;
+            overflow-y: auto;
+            color: var(--text-primary);
+            position: relative;
+        }
+
+        input, select, textarea {
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            border-color: var(--border-primary);
+        }
+
+        .expired {
+            border-color: var(--expired);
+            background: #ffe6e6;
+            color: var(--expired);
+        }
+
+        .warning-one-month {
+            border-color: var(--warning-one-month);
+            background: #ffede0;
+            color: var(--warning-one-month);
+        }
+
+        .warning-three-months {
+            border-color: var(--warning-three-months);
+            background: #fffde7;
+            color: var(--warning-three-months);
+        }
+
+        .beyond-three-months {
+            border-color: var(--beyond-three-months);
+            background: #e6f0ff;
+            color: var(--beyond-three-months);
+        }
+
+        [data-theme="dark"] .expired {
+            background: #4a0000;
+            border-color: var(--expired);
+            color: var(--expired);
+        }
+
+        [data-theme="dark"] .warning-one-month {
+            background: #4a2a00;
+            border-color: var(--warning-one-month);
+            color: var(--warning-one-month);
+        }
+
+        [data-theme="dark"] .warning-three-months {
+            background: #4a3f00;
+            border-color: var(--warning-three-months);
+            color: var(--warning-three-months);
+        }
+
+        [data-theme="dark"] .beyond-three-months {
+            background: #00264a;
+            border-color: var(--beyond-three-months);
+            color: var(--beyond-three-months);
+        }
+
+        .quantidade-input {
+            width: 40px;
+            text-align: center;
+            border: 1px solid var(--border-primary);
+            border-radius: 0.25rem;
+        }
+
+        .fotos img {
+            width: 50px;
+            height: 50px;
+            object-fit: cover;
+            cursor: pointer;
+        }
+
+        .modal-thumbnails img {
+            width: 50px;
+            height: 50px;
+            object-fit: contain;
+            border: 2px solid transparent;
+            border-radius: 0.25rem;
+        }
+
+        .modal-thumbnails img.active {
+            border-color: var(--bg-button);
+        }
+
+        .zoom-container {
+            position: relative;
+            overflow: hidden;
+            max-width: 100%;
+            max-height: 60vh;
+            cursor: grab;
+        }
+
+        .zoom-image {
+            max-width: 100%;
+            max-height: 60vh;
+            object-fit: contain;
+            cursor: grab;
+            transition: transform 0.3s ease;
+            transform-origin: 0 0;
+        }
+
+        .zoom-image.zoomed {
+            cursor: grabbing;
+        }
+
+        .confirmation-modal {
+            background: var(--bg-secondary);
+            padding: 1rem;
+            border-radius: 0.5rem;
+            max-width: 400px;
+            text-align: center;
+            color: var(--text-primary);
+        }
+
+        .category-button {
+            transition: filter 0.2s ease, transform 0.1s ease;
+        }
+
+        .category-button:hover {
+            filter: brightness(1.2);
+        }
+
+        .category-button:active {
+            transform: scale(0.95);
+        }
+
+        .highlight {
+            background-color: #b2f5ea;
+        }
+
+        [data-theme="dark"] .highlight {
+            background-color: #2c7a7b;
+        }
+
+        @media (max-width: 600px) {
+            .quantidade-input {
+                width: 30px;
+            }
+            .modal-content {
+                padding: 1rem;
+            }
+            .modal-thumbnails img {
+                width: 40px;
+                height: 40px;
+            }
+            table {
+                font-size: 0.75rem;
+            }
+            th, td {
+                padding: 0.5rem;
+            }
+        }
+    </style>
+</head>
+<body data-theme="light">
+    <div class="max-w-5xl mx-auto p-4">
+        <header class="p-4 rounded-lg flex justify-between items-center" style="background-color: var(--bg-header); color: var(--text-header);">
+            <h1 class="text-2xl font-bold">KitchenSync</h1>
+            <button id="theme-toggle" class="text-xl">🌙</button>
+        </header>
+        <nav class="mt-4">
+            <h2 class="text-lg font-semibold" style="color: var(--text-primary);">Categorias</h2>
+            <input id="search-items" class="w-full p-2 border rounded mb-2" placeholder="Buscar item..." style="color: var(--text-primary); border-color: var(--border-primary);">
+            <div id="categorias" class="grid gap-2">
+                <button class="category-button text-white p-2 rounded relative" style="background-color: var(--bg-button);" onclick="mostrarCategoria('conservas_vegetais')">Conservas Vegetais</button>
+                <button class="category-button text-white p-2 rounded relative" style="background-color: var(--bg-button);" onclick="mostrarCategoria('guloseimas')">Guloseimas, Açúcares, Adoçantes</button>
+                <button class="category-button text-white p-2 rounded relative" style="background-color: var(--bg-button);" onclick="mostrarCategoria('sopas_caldos')">Sopas e Caldos</button>
+                <button class="category-button text-white p-2 rounded relative" style="background-color: var(--bg-button);" onclick="mostrarCategoria('veganos_bebidas')">Veganos e Bebidas</button>
+                <button class="category-button text-white p-2 rounded relative" style="background-color: var(--bg-button);" onclick="mostrarCategoria('ovolactovegetarianos_cogumelos')">Ovolactovegetarianos e Cogumelos</button>
+                <button class="category-button text-white p-2 rounded relative" style="background-color: var(--bg-button);" onclick="mostrarCategoria('farinhas_fermento')">Farinhas, Fermento, Massas</button>
+                <button class="category-button text-white p-2 rounded relative" style="background-color: var(--bg-button);" onclick="mostrarCategoria('oleos_gorduras')">Óleos, Gorduras, Vinagres</button>
+                <button class="category-button text-white p-2 rounded relative" style="background-color: var(--bg-button);" onclick="mostrarCategoria('molhos_condimentos')">Molhos, Condimentos, Especiarias</button>
+                <button class="category-button text-white p-2 rounded relative" style="background-color: var(--bg-button);" onclick="mostrarCategoria('frutas_verduras')">Frutas e Verduras</button>
+                <button class="category-button text-white p-2 rounded relative" style="background-color: var(--bg-button);" onclick="mostrarCategoria('carnes_pescados')">Carnes e Pescados</button>
+                <button class="category-button text-white p-2 rounded relative" style="background-color: var(--bg-button);" onclick="abrirModalGerenciarItens()">⚙️ Gerenciar Itens</button>
+            </div>
+        </nav>
+        <main class="p-4 rounded-lg shadow mt-4" style="background-color: var(--bg-secondary);">
+            <h2 id="titulo-categoria" class="text-lg font-semibold inline" style="color: var(--text-primary);">Selecione uma categoria</h2>
+            <span id="abertos-total" class="inline-block text-sm px-2 py-1 rounded-full ml-2" style="background-color: var(--bg-yellow-indicator); color: var(--text-yellow-indicator);"></span>
+            <div id="grade-container" class="overflow-x-auto max-h-96 mt-4"></div>
+            <div id="expiration-summary" class="mt-4 p-4 rounded-lg border" style="background-color: var(--bg-tertiary); border-color: var(--border-primary);"></div>
+            <div id="error-message" class="font-bold mt-2" style="color: var(--expired);"></div>
+        </main>
+        <div id="image-modal" class="modal">
+            <div class="modal-content">
+                <div class="zoom-container">
+                    <img id="modal-image" class="zoom-image" src="">
+                </div>
+                <div class="flex justify-between items-center mt-2">
+                    <button id="prev-image" class="text-white px-4 py-2 rounded disabled:bg-gray-400 category-button" style="background-color: var(--bg-button);" onclick="navegarImagem(-1)">&lt;</button>
+                    <span id="modal-counter" class="text-sm" style="color: var(--text-primary);"></span>
+                    <button id="next-image" class="text-white px-4 py-2 rounded disabled:bg-gray-400 category-button" style="background-color: var(--bg-button);" onclick="navegarImagem(1)">&gt;</button>
+                </div>
+                <div id="modal-thumbnails" class="flex overflow-x-auto gap-2 mt-2 justify-center"></div>
+                <button class="text-white px-4 py-2 rounded mt-2 category-button" style="background-color: var(--bg-button);" onclick="fecharModal()">Fechar</button>
+            </div>
+        </div>
+        <div id="avisos-compras-modal" class="modal">
+            <div class="modal-content">
+                <h2 class="text-xl font-semibold mb-2" style="color: var(--text-primary);">🛒⚠️ Avisos e Compras</h2>
+                <input id="search-avisos" class="w-full p-2 border rounded mb-2" placeholder="Buscar aviso..." style="color: var(--text-primary); border-color: var(--border-primary);">
+                <textarea id="novo-aviso-compras" class="w-full h-20 p-2 border rounded mb-2" placeholder="Digite um aviso ou item de compras..."></textarea>
+                <div class="flex gap-4 mb-2">
+                    <label><input type="checkbox" id="check-aviso"> ⚠️ Aviso</label>
+                    <label><input type="checkbox" id="check-compras"> 🛒 Compras</label>
+                </div>
+                <button class="text-white px-4 py-2 rounded mb-2 category-button" style="background-color: var(--bg-button);" onclick="adicionarAvisoCompras()">Adicionar</button>
+                <div id="avisos-compras-list" class="mb-2"></div>
+                <div id="avisos-compras-error" class="font-bold mb-2" style="color: var(--expired);"></div>
+                <button class="text-white px-4 py-2 rounded category-button" style="background-color: var(--bg-button);" onclick="fecharModalAvisosCompras()">Fechar</button>
+            </div>
+        </div>
+        <div id="gerenciar-itens-modal" class="modal">
+            <div class="modal-content">
+                <h2 class="text-xl font-semibold mb-2" style="color: var(--text-primary);">Gerenciar Itens</h2>
+                <select id="categoria-select" class="w-full p-2 border rounded mb-2">
+                    <option value="conservas_vegetais">Conservas Vegetais</option>
+                    <option value="guloseimas">Guloseimas, Açúcares, Adoçantes</option>
+                    <option value="sopas_caldos">Sopas e Caldos</option>
+                    <option value="veganos_bebidas">Veganos e Bebidas</option>
+                    <option value="ovolactovegetarianos_cogumelos">Ovolactovegetarianos e Cogumelos</option>
+                    <option value="farinhas_fermento">Farinhas, Fermento, Massas</option>
+                    <option value="oleos_gorduras">Óleos, Gorduras, Vinagres</option>
+                    <option value="molhos_condimentos">Molhos, Condimentos, Especiarias</option>
+                    <option value="frutas_verduras">Frutas e Verduras</option>
+                    <option value="carnes_pescados">Carnes e Pescados</option>
+                </select>
+                <input id="novo-item" class="w-full p-2 border rounded mb-2" placeholder="Digite o nome do item...">
+                <button class="text-white px-4 py-2 rounded mb-2 category-button" style="background-color: var(--bg-button);" onclick="adicionarItem()">Adicionar Item</button>
+                <div id="itens-list" class="mb-2"></div>
+                <div id="itens-error" class="font-bold mb-2" style="color: var(--expired);"></div>
+                <button class="text-white px-4 py-2 rounded category-button" style="background-color: var(--bg-button);" onclick="fecharModalGerenciarItens()">Fechar</button>
+            </div>
+        </div>
+        <div id="confirmation-modal" class="modal">
+            <div class="confirmation-modal">
+                <p id="confirmation-message" class="mb-4"></p>
+                <div class="flex justify-center gap-4">
+                    <button id="confirm-yes" class="text-white px-4 py-2 rounded category-button" style="background-color: var(--bg-button);">Sim</button>
+                    <button id="confirm-no" class="text-white px-4 py-2 rounded category-button" style="background-color: var(--expired);">Não</button>
+                </div>
+            </div>
+        </div>
+        <div id="select-unit-modal" class="modal">
+            <div class="modal-content">
+                <h2 class="text-xl font-semibold mb-2" style="color: var(--text-primary);">Selecione a Unidade a Remover</h2>
+                <div id="unit-list" class="mb-2"></div>
+                <div id="unit-error" class="font-bold mb-2" style="color: var(--expired);"></div>
+                <button class="text-white px-4 py-2 rounded category-button" style="background-color: var(--bg-button);" onclick="fecharModalSelectUnit()">Fechar</button>
+            </div>
+        </div>
+        <footer class="mt-4 flex justify-center gap-2">
+            <button class="text-white px-4 py-2 rounded flex items-center category-button" style="background-color: var(--bg-button);" onclick="abrirModalAvisosCompras()">🛒⚠️ Avisos e Compras</button>
+            <button class="text-white px-4 py-2 rounded flex items-center category-button" style="background-color: var(--bg-button);" onclick="importarDados()">Importar</button>
+            <button class="text-white px-4 py-2 rounded flex items-center category-button" style="background-color: var(--bg-button);" onclick="exportarDados()">Exportar</button>
+        </footer>
+    </div>
+    <script>
+        const categorias = ["conservas_vegetais","guloseimas","sopas_caldos","veganos_bebidas","ovolactovegetarianos_cogumelos","farinhas_fermento","oleos_gorduras","molhos_condimentos","frutas_verduras","carnes_pescados"];
+        const locais = ["DespensaA","DespensaB","DespensaC","Congelador","Refrigerador","GeladeiraTopo","Fruteira/Bandeja","FornoG","FornoP"];
+        let estoque = JSON.parse(localStorage.getItem('estoque_all')) || {};
+        categorias.forEach(c => { if (!estoque[c]) estoque[c] = {}; });
+        localStorage.setItem('estoque_all', JSON.stringify(estoque));
+        let listaComprasTemp = {}, currentImages = [], currentImageIndex = 0, currentCategoria = '', currentItem = '', currentLocal = '';
+        let confirmCallback = null;
+        let isDragging = false, startX = 0, startY = 0, translateX = 0, translateY = 0, scale = 1;
+
+        function toggleTheme() {
+            const body = document.body, themeToggle = document.getElementById('theme-toggle');
+            const theme = body.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+            body.setAttribute('data-theme', theme);
+            themeToggle.textContent = theme === 'dark' ? '☀️' : '🌙';
+            localStorage.setItem('theme_all', theme);
+
+            document.querySelectorAll('th, td').forEach(el => {
+                el.style.backgroundColor = theme === 'dark' ? 'var(--bg-tertiary)' : '#edf2f7';
+                el.style.borderColor = 'var(--border-primary)';
+            });
+        }
+
+        function loadTheme() {
+            const theme = localStorage.getItem('theme_all') || 'light';
+            document.body.setAttribute('data-theme', theme);
+            document.getElementById('theme-toggle').textContent = theme === 'dark' ? '☀️' : '🌙';
+            toggleTheme();
+        }
+
+        function showConfirmation(message, callback) {
+            const modal = document.getElementById('confirmation-modal');
+            document.getElementById('confirmation-message').textContent = message;
+            confirmCallback = callback;
+            modal.style.display = 'flex';
+        }
+
+        function closeConfirmation() {
+            document.getElementById('confirmation-modal').style.display = 'none';
+            confirmCallback = null;
+        }
+
+        function syncData() {
+            const currentTime = Date.now();
+            const storedLastSync = parseInt(localStorage.getItem('lastSync') || '0');
+            if (currentTime > storedLastSync) {
+                localStorage.setItem('estoque_all', JSON.stringify(estoque));
+                localStorage.setItem('lastSync', currentTime);
+            } else {
+                const newEstoque = JSON.parse(localStorage.getItem('estoque_all') || '{}');
+                mergeEstoque(newEstoque);
+            }
+        }
+
+        function mergeEstoque(newEstoque) {
+            categorias.forEach(c => {
+                if (!newEstoque[c]) newEstoque[c] = {};
+                Object.keys(newEstoque[c]).forEach(item => {
+                    if (!estoque[c][item]) estoque[c][item] = {};
+                    locais.forEach(local => {
+                        if (!estoque[c][item][local]) {
+                            estoque[c][item][local] = { quantidade: 0, vencimentos: [], abertos: [], fotos: [] };
+                        }
+                        if (newEstoque[c][item][local]) {
+                            const newData = newEstoque[c][item][local];
+                            const oldData = estoque[c][item][local];
+                            oldData.quantidade = Math.max(oldData.quantidade, newData.quantidade);
+                            oldData.vencimentos = newData.vencimentos.length > oldData.vencimentos.length ? newData.vencimentos : oldData.vencimentos;
+                            oldData.abertos = newData.abertos.length > oldData.abertos.length ? newData.abertos : oldData.abertos;
+                            oldData.fotos = newData.fotos.length > oldData.fotos.length ? newData.fotos : oldData.fotos;
+                        }
+                    });
+                });
+            });
+            salvarEstoque();
+        }
+
+        function verificarVencimento(data) {
+            if (!data) return '';
+            const hoje = new Date(); hoje.setHours(0,0,0,0);
+            const vencimento = new Date(data); vencimento.setHours(0,0,0,0);
+            const diffDays = (vencimento - hoje) / (1000 * 60 * 60 * 24);
+            return diffDays < 0 ? 'expired' : 
+                   diffDays <= 90 ? 'warning-one-month' : 
+                   diffDays <= 180 ? 'warning-three-months' : 
+                   'beyond-three-months';
+        }
+
+        function gerarNotificacaoVencimento(categoria, item, local, index, data) {
+            const status = verificarVencimento(data);
+            if (!status) return;
+            const mensagens = {
+                'expired': `⚠️ ${item} em ${local} (unidade ${index + 1}) está vencido desde ${data}!`,
+                'warning-one-month': `⚠️ ${item} em ${local} (unidade ${index + 1}) vencerá em menos de 3 meses (${data}).`,
+                'warning-three-months': `⚠️ ${item} em ${local} (unidade ${index + 1}) vencerá em 3 a 6 meses (${data}).`,
+                'beyond-three-months': `⚠️ ${item} em ${local} (unidade ${index + 1}) vence em mais de 6 meses (${data}).`
+            };
+            const avisos = carregarAvisos();
+            if (!avisos.find(a => a.texto.includes(`${item} em ${local} (unidade ${index + 1})`) && a.texto.includes(data))) {
+                avisos.push({ id: Date.now(), texto: mensagens[status], data: new Date().toLocaleString('pt-BR'), tipo: 'vencimentos' });
+                salvarAvisos(avisos);
+            }
+        }
+
+        function abrirModal(foto, categoria, item, local) {
+            currentCategoria = categoria; currentItem = item; currentLocal = local;
+            currentImages = estoque[categoria][item][local].fotos.filter(f => f);
+            currentImageIndex = currentImages.indexOf(foto) || 0;
+            const modal = document.getElementById('image-modal'), modalImage = document.getElementById('modal-image');
+            const modalCounter = document.getElementById('modal-counter'), prevButton = document.getElementById('prev-image');
+            const nextButton = document.getElementById('next-image'), thumbnails = document.getElementById('modal-thumbnails');
+            modalImage.src = currentImages[currentImageIndex] || '';
+            modalImage.classList.remove('zoomed');
+            modalImage.style.transform = 'scale(1) translate(0, 0)';
+            scale = 1; translateX = 0; translateY = 0;
+            modalCounter.textContent = currentImages.length ? `Imagem ${currentImageIndex + 1} de ${currentImages.length}` : 'Nenhuma imagem';
+            prevButton.disabled = currentImages.length <= 1 || currentImageIndex === 0;
+            nextButton.disabled = currentImages.length <= 1 || currentImageIndex === currentImages.length - 1;
+            thumbnails.innerHTML = `<img src="${currentImages[currentImageIndex]}" class="active">`;
+            modal.style.display = 'flex';
+        }
+
+        function atualizarModalImagem() {
+            const modalImage = document.getElementById('modal-image'), modalCounter = document.getElementById('modal-counter');
+            const prevButton = document.getElementById('prev-image'), nextButton = document.getElementById('next-image');
+            const thumbnails = document.getElementById('modal-thumbnails');
+            modalImage.src = currentImages[currentImageIndex] || '';
+            modalImage.classList.remove('zoomed');
+            modalImage.style.transform = 'scale(1) translate(0, 0)';
+            scale = 1; translateX = 0; translateY = 0;
+            modalCounter.textContent = currentImages.length ? `Imagem ${currentImageIndex + 1} de ${currentImages.length}` : 'Nenhuma imagem';
+            prevButton.disabled = currentImages.length <= 1 || currentImageIndex === 0;
+            nextButton.disabled = currentImages.length <= 1 || currentImageIndex === currentImages.length - 1;
+            thumbnails.innerHTML = `<img src="${currentImages[currentImageIndex]}" class="active">`;
+        }
+
+        function toggleZoom() {
+            const modalImage = document.getElementById('modal-image');
+            if (modalImage.classList.contains('zoomed')) {
+                modalImage.classList.remove('zoomed');
+                scale = 1; translateX = 0; translateY = 0;
+                modalImage.style.transform = 'scale(1) translate(0, 0)';
+            } else {
+                modalImage.classList.add('zoomed');
+                scale = 2;
+                modalImage.style.transform = `scale(${scale}) translate(${translateX}px, ${translateY}px)`;
+            }
+        }
+
+        function startDrag(e) {
+            if (!document.getElementById('modal-image').classList.contains('zoomed')) return;
+            isDragging = true;
+            startX = e.clientX - translateX;
+            startY = e.clientY - translateY;
+            document.getElementById('modal-image').style.cursor = 'grabbing';
+        }
+
+        function drag(e) {
+            if (!isDragging) return;
+            e.preventDefault();
+            translateX = e.clientX - startX;
+            translateY = e.clientY - startY;
+            const modalImage = document.getElementById('modal-image');
+            const container = document.querySelector('.zoom-container');
+            const imgRect = modalImage.getBoundingClientRect();
+            const contRect = container.getBoundingClientRect();
+            const maxX = (imgRect.width * scale - contRect.width) / (2 * scale);
+            const maxY = (imgRect.height * scale - contRect.height) / (2 * scale);
+            translateX = Math.max(-maxX, Math.min(maxX, translateX));
+            translateY = Math.max(-maxY, Math.min(maxY, translateY));
+            modalImage.style.transform = `scale(${scale}) translate(${translateX}px, ${translateY}px)`;
+        }
+
+        function stopDrag() {
+            isDragging = false;
+            document.getElementById('modal-image').style.cursor = 'grab';
+        }
+
+        function navegarImagem(delta) {
+            const newIndex = currentImageIndex + delta;
+            if (newIndex >= 0 && newIndex < currentImages.length) {
+                currentImageIndex = newIndex;
+                atualizarModalImagem();
+            }
+        }
+
+        function fecharModal() {
+            document.getElementById('image-modal').style.display = 'none';
+            currentImages = []; currentImageIndex = 0;
+            isDragging = false; scale = 1; translateX = 0; translateY = 0;
+        }
+
+        function abrirModalAvisosCompras() {
+            const modal = document.getElementById('avisos-compras-modal'), lista = document.getElementById('avisos-compras-list');
+            const error = document.getElementById('avisos-compras-error');
+            lista.innerHTML = ''; error.textContent = '';
+            document.getElementById('novo-aviso-compras').value = '';
+            document.getElementById('check-aviso').checked = false;
+            document.getElementById('check-compras').checked = false;
+            document.getElementById('search-avisos').value = '';
+            atualizarListaAvisosCompras();
+            modal.style.display = 'flex';
+        }
+
+        function atualizarListaAvisosCompras() {
+            const lista = document.getElementById('avisos-compras-list');
+            const searchText = document.getElementById('search-avisos').value.toLowerCase();
+            lista.innerHTML = '';
+            let avisos = carregarAvisos();
+            avisos = avisos.filter(a => a.texto.toLowerCase().includes(searchText));
+            avisos.forEach(a => {
+                const div = document.createElement('div'); div.className = 'flex justify-between p-2 border-b'; div.style.borderColor = 'var(--border-primary)';
+                const prefix = a.tipo === 'compras' || a.tipo === 'ambos' ? '🛒 ' : '⚠️ ';
+                const status = a.tipo === 'vencimentos' ? verificarVencimento(a.texto.match(/\d{4}-\d{2}-\d{2}/)?.[0]) : '';
+                const span = document.createElement('span'); span.textContent = prefix + a.texto; span.className = `flex-1 ${status}`; span.style.color = status ? '' : 'var(--text-primary)';
+                const small = document.createElement('small'); small.textContent = ` (${a.data})`; small.className = 'text-gray-500'; small.style.color = 'var(--text-secondary)';
+                const deleteBtn = document.createElement('button'); deleteBtn.className = 'text-white px-2 py-1 rounded text-xs category-button'; deleteBtn.style.backgroundColor = 'var(--expired)'; deleteBtn.textContent = 'X';
+                deleteBtn.onclick = () => showConfirmation(`Tem certeza que deseja remover este item?`, () => deletarAviso(a.id));
+                div.appendChild(span); div.appendChild(small); div.appendChild(deleteBtn); lista.appendChild(div);
+            });
+        }
+
+        function fecharModalAvisosCompras() {
+            document.getElementById('avisos-compras-modal').style.display = 'none';
+        }
+
+        function adicionarAvisoCompras() {
+            const texto = document.getElementById('novo-aviso-compras').value.trim();
+            const checkAviso = document.getElementById('check-aviso').checked;
+            const checkCompras = document.getElementById('check-compras').checked;
+            const error = document.getElementById('avisos-compras-error');
+            if (!texto) { error.textContent = 'Insira um texto para o aviso ou item de compras.'; return; }
+            if (!checkAviso && !checkCompras) { error.textContent = 'Selecione pelo menos uma categoria (Aviso ou Compras).'; return; }
+            const avisos = carregarAvisos();
+            const tipo = checkAviso && checkCompras ? 'ambos' : checkAviso ? 'aviso' : 'compras';
+            avisos.push({ id: Date.now(), texto, data: new Date().toLocaleString('pt-BR'), tipo });
+            salvarAvisos(avisos);
+            document.getElementById('novo-aviso-compras').value = '';
+            document.getElementById('check-aviso').checked = false;
+            document.getElementById('check-compras').checked = false;
+            error.textContent = 'Item adicionado!';
+            atualizarListaAvisosCompras();
+        }
+
+        function carregarAvisos() {
+            return JSON.parse(localStorage.getItem('avisos_all') || '[]');
+        }
+
+        function salvarAvisos(avisos) {
+            localStorage.setItem('avisos_all', JSON.stringify(avisos));
+        }
+
+        function deletarAviso(id) {
+            salvarAvisos(carregarAvisos().filter(a => a.id !== id));
+            atualizarListaAvisosCompras();
+            closeConfirmation();
+        }
+
+        function abrirModalGerenciarItens() {
+            const modal = document.getElementById('gerenciar-itens-modal'), lista = document.getElementById('itens-list');
+            const error = document.getElementById('itens-error'), select = document.getElementById('categoria-select');
+            lista.innerHTML = ''; error.textContent = ''; document.getElementById('novo-item').value = '';
+            const categoria = select.value;
+            Object.keys(estoque[categoria]).forEach(item => {
+                const div = document.createElement('div'); div.className = 'flex justify-between p-2 border-b'; div.style.borderColor = 'var(--border-primary)';
+                const span = document.createElement('span'); span.textContent = item; span.className = 'flex-1'; span.style.color = 'var(--text-primary)';
+                const deleteBtn = document.createElement('button'); deleteBtn.className = 'text-white px-2 py-1 rounded text-xs category-button'; deleteBtn.style.backgroundColor = 'var(--expired)'; deleteBtn.textContent = 'X';
+                deleteBtn.onclick = () => showConfirmation(`Tem certeza que deseja remover o item "${item}"?`, () => deletarItem(categoria, item));
+                div.appendChild(span); div.appendChild(deleteBtn); lista.appendChild(div);
+            });
+            modal.style.display = 'flex';
+        }
+
+        function fecharModalGerenciarItens() {
+            document.getElementById('gerenciar-itens-modal').style.display = 'none';
+        }
+
+        function adicionarItem() {
+            const categoria = document.getElementById('categoria-select').value;
+            const item = document.getElementById('novo-item').value.trim();
+            const error = document.getElementById('itens-error');
+            if (!item) { error.textContent = 'Insira o nome do item.'; return; }
+            if (estoque[categoria][item]) { error.textContent = 'Item já existe na categoria.'; return; }
+            estoque[categoria][item] = {};
+            locais.forEach(local => {
+                estoque[categoria][item][local] = { quantidade: 0, vencimentos: [], abertos: [], fotos: [] };
+            });
+            salvarEstoque();
+            abrirModalGerenciarItens();
+            error.textContent = 'Item adicionado!';
+            mostrarCategoria(categoria);
+        }
+
+        function deletarItem(categoria, item) {
+            delete estoque[categoria][item];
+            salvarEstoque();
+            abrirModalGerenciarItens();
+            mostrarCategoria(categoria);
+            closeConfirmation();
+        }
+
+        function exportarDados() {
+            const workbook = XLSX.utils.book_new();
+            const estoqueData = [['Categoria', 'Item', 'Local', 'Quantidade', 'Vencimentos', 'Abertos', 'Fotos']];
+            categorias.forEach(c => {
+                for (const item in estoque[c]) {
+                    for (const local in estoque[c][item]) {
+                        const d = estoque[c][item][local];
+                        estoqueData.push([c, item, local, d.quantidade, d.vencimentos.join('; '), d.abertos.map(a => a ? 'Sim' : 'Não').join('; '), d.fotos.map(f => f ? '[Foto em base64]' : '').join('; ')]);
+                    }
+                }
+            });
+            const estoqueSheet = XLSX.utils.aoa_to_sheet(estoqueData);
+            estoqueSheet['!cols'] = [{wch:20},{wch:30},{wch:20},{wch:10},{wch:40},{wch:20},{wch:30}];
+            XLSX.utils.book_append_sheet(workbook, estoqueSheet, 'Estoque');
+            const avisosData = [['ID', 'Texto', 'Data', 'Tipo']];
+            carregarAvisos().forEach(a => avisosData.push([a.id, a.texto, a.data, a.tipo]));
+            const avisosSheet = XLSX.utils.aoa_to_sheet(avisosData);
+            avisosSheet['!cols'] = [{wch:10},{wch:50},{wch:15},{wch:10}];
+            XLSX.utils.book_append_sheet(workbook, avisosSheet, 'Avisos');
+            XLSX.writeFile(workbook, `estoque_all_${new Date().toISOString().split('T')[0]}.xlsx`, { compression: true });
+            document.getElementById('error-message').textContent = 'Dados exportados com sucesso!';
+        }
+
+        function importarDados() {
+            const input = document.createElement('input'); input.type = 'file'; input.accept = '.xlsx';
+            input.onchange = (e) => {
+                const file = e.target.files[0]; if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    const workbook = XLSX.read(new Uint8Array(event.target.result), { type: 'array' });
+                    const estoqueSheet = workbook.Sheets['Estoque'];
+                    if (!estoqueSheet) {
+                        document.getElementById('error-message').textContent = 'Planilha "Estoque" não encontrada.';
+                        return;
+                    }
+                    const data = XLSX.utils.sheet_to_json(estoqueSheet, { header: ['Categoria', 'Item', 'Local', 'Quantidade', 'Vencimentos', 'Abertos', 'Fotos'], skipHeader: true });
+                    const newEstoque = {}; categorias.forEach(c => newEstoque[c] = {});
+                    data.forEach(row => {
+                        if (!categorias.includes(row.Categoria) || !locais.includes(row.Local)) return;
+                        const q = parseInt(row.Quantidade) || 0;
+                        if (q < 0) {
+                            document.getElementById('error-message').textContent = `Quantidade inválida para ${row.Item} em ${row.Local}.`;
+                            return;
+                        }
+                        if (!newEstoque[row.Categoria][row.Item]) {
+                            newEstoque[row.Categoria][row.Item] = {};
+                            locais.forEach(l => newEstoque[row.Categoria][row.Item][l] = { quantidade: 0, vencimentos: [], abertos: [], fotos: [] });
+                        }
+                        const v = row.Vencimentos ? row.Vencimentos.split(';').map(v => v.trim()).filter(v => v) : [];
+                        const a = row.Abertos ? row.Abertos.split(';').map(a => a.trim() === 'Sim') : [];
+                        const f = row.Fotos ? row.Fotos.split(';').map(f => f.trim() === '[Foto em base64]' ? '' : f.trim()).filter(f => f) : [];
+                        while (v.length < q) v.push('');
+                        while (v.length > q) v.pop();
+                        while (a.length < q) a.push(false);
+                        while (a.length > q) a.pop();
+                        while (f.length < q) f.push('');
+                        while (f.length > q) f.pop();
+                        newEstoque[row.Categoria][row.Item][row.Local] = { quantidade: q, vencimentos: v, abertos: a, fotos: f };
+                        v.forEach((d, i) => { if (d) gerarNotificacaoVencimento(row.Categoria, row.Item, row.Local, i, d); });
+                    });
+                    estoque = newEstoque;
+                    localStorage.setItem('estoque_all', JSON.stringify(estoque));
+                    document.getElementById('error-message').textContent = 'Dados importados com sucesso!';
+                    mostrarCategoria(document.getElementById('titulo-categoria').textContent.toLowerCase().replace(/ /g,'_') || 'conservas_vegetais');
+                };
+                reader.readAsArrayBuffer(file);
+            };
+            input.click();
+        }
+
+        function contarAbertosPorItem(categoria, item) {
+            return locais.reduce((sum, local) => sum + (estoque[categoria][item][local].abertos || []).filter(a => a).length, 0);
+        }
+
+        function contarAbertosTotal(categoria) {
+            return Object.keys(estoque[categoria]).reduce((sum, item) => sum + contarAbertosPorItem(categoria, item), 0);
+        }
+
+        function atualizarIndicadores(categoria) {
+            const abertosTotal = contarAbertosTotal(categoria);
+            document.getElementById('abertos-total').textContent = abertosTotal ? `A${abertosTotal}` : '';
+            document.querySelectorAll('.button-abertos-indicador').forEach(ind => ind.remove());
+            const btn = document.querySelector(`button[onclick="mostrarCategoria('${categoria}')"]`);
+            if (abertosTotal) {
+                const span = document.createElement('span'); 
+                span.className = 'button-abertos-indicador absolute top-1 right-1 text-xs px-2 py-1 rounded-full'; 
+                span.style.backgroundColor = 'var(--bg-yellow-indicator)'; 
+                span.style.color = 'var(--text-yellow-indicator)';
+                span.textContent = `A${abertosTotal}`; 
+                btn.appendChild(span);
+            }
+        }
+
+        function atualizarFotos(categoria, item, local, files) {
+            const data = estoque[categoria][item][local];
+            while (data.fotos.length < data.quantidade) data.fotos.push('');
+            while (data.fotos.length > data.quantidade) data.fotos.pop();
+            let fileIndex = 0;
+            for (let i = 0; i < data.quantidade && fileIndex < files.length; i++) {
+                if (!data.fotos[i]) {
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        data.fotos[i] = e.target.result;
+                        salvarEstoque();
+                        mostrarCategoria(categoria);
+                    };
+                    reader.readAsDataURL(files[fileIndex++]);
+                }
+            }
+            salvarEstoque();
+            mostrarCategoria(categoria);
+        }
+
+        function deletarVencimento(categoria, item, local, index) {
+            showConfirmation(`Tem certeza que deseja remover a data de vencimento da unidade ${index + 1} de ${item} em ${local}?`, () => {
+                estoque[categoria][item][local].vencimentos[index] = '';
+                salvarEstoque();
+                mostrarCategoria(categoria);
+                closeConfirmation();
+            });
+        }
+
+        function deletarFoto(categoria, item, local, index) {
+            showConfirmation(`Tem certeza que deseja remover a foto da unidade ${index + 1} de ${item} em ${local}?`, () => {
+                estoque[categoria][item][local].fotos[index] = '';
+                salvarEstoque();
+                mostrarCategoria(categoria);
+                closeConfirmation();
+            });
+        }
+
+        function salvarEstoque() {
+            localStorage.setItem('estoque_all', JSON.stringify(estoque));
+            localStorage.setItem('lastSync', Date.now());
+        }
+
+        function mostrarCategoria(categoria) {
+            const searchText = document.getElementById('search-items').value.toLowerCase();
+            const titulo = document.getElementById('titulo-categoria'), grade = document.getElementById('grade-container');
+            const summary = document.getElementById('expiration-summary'), error = document.getElementById('error-message');
+            grade.innerHTML = ''; summary.innerHTML = ''; error.textContent = '';
+            document.querySelectorAll('#categorias button').forEach(btn => btn.classList.remove('highlight'));
+
+            if (searchText) {
+                const found = categorias.find(c => Object.keys(estoque[c]).some(item => item.toLowerCase().includes(searchText)));
+                if (found && found !== categoria) {
+                    error.textContent = `Item encontrado em ${found.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}.`;
+                    const btn = document.querySelector(`button[onclick="mostrarCategoria('${found}')"]`);
+                    if (btn) btn.classList.add('highlight');
+                    titulo.textContent = 'Selecione uma categoria';
+                    return;
+                }
+            }
+
+            titulo.textContent = categoria.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+            atualizarIndicadores(categoria);
+            const table = document.createElement('table'); table.className = 'w-full border-collapse min-w-[800px]';
+            const thead = document.createElement('thead'); const trHead = document.createElement('tr'); trHead.style.backgroundColor = 'var(--bg-tertiary)';
+            trHead.innerHTML = '<th class="p-2 text-left sticky top-0" style="background-color: var(--bg-tertiary);">Item</th>' + locais.map(l => `<th class="p-2 text-left sticky top-0" style="background-color: var(--bg-tertiary);">${l}</th>`).join('');
+            thead.appendChild(trHead); table.appendChild(thead);
+            const tbody = document.createElement('tbody');
+            const expiredItems = [], oneMonthItems = [], threeMonthItems = [], beyondThreeMonthItems = [];
+            Object.keys(estoque[categoria]).sort().forEach(item => {
+                if (searchText && !item.toLowerCase().includes(searchText)) return;
+                const tr = document.createElement('tr'); const tdItem = document.createElement('td'); tdItem.className = 'p-2 border relative'; tdItem.style.borderColor = 'var(--border-primary)';
+                const abertos = contarAbertosPorItem(categoria, item);
+                tdItem.innerHTML = `${item}${abertos ? `<span class="absolute top-1 left-1 text-xs px-2 py-1 rounded-full" style="background-color: var(--bg-yellow-indicator); color: var(--text-yellow-indicator);">A${abertos}</span>` : ''}`;
+                if (searchText && item.toLowerCase().includes(searchText)) tdItem.classList.add('highlight');
+                tr.appendChild(tdItem);
+                locais.forEach(local => {
+                    const data = estoque[categoria][item][local];
+                    while (data.vencimentos.length < data.quantidade) data.vencimentos.push('');
+                    while (data.vencimentos.length > data.quantidade) data.vencimentos.pop();
+                    while (data.abertos.length < data.quantidade) data.abertos.push(false);
+                    while (data.abertos.length > data.quantidade) data.abertos.pop();
+                    while (data.fotos.length < data.quantidade) data.fotos.push('');
+                    while (data.fotos.length > data.quantidade) data.fotos.pop();
+                    data.vencimentos.forEach((v, i) => {
+                        if (v) {
+                            gerarNotificacaoVencimento(categoria, item, local, i, v);
+                            const s = verificarVencimento(v);
+                            const obj = { item, local, index: i + 1, data: v };
+                            if (s === 'expired') expiredItems.push(obj);
+                            else if (s === 'warning-one-month') oneMonthItems.push(obj);
+                            else if (s === 'warning-three-months') threeMonthItems.push(obj);
+                            else if (s === 'beyond-three-months') beyondThreeMonthItems.push(obj);
+                        }
+                    });
+                    const td = document.createElement('td'); td.className = 'p-2 border relative'; td.style.borderColor = 'var(--border-primary)';
+                    const quantContainer = document.createElement('div'); quantContainer.className = 'flex justify-center mb-2';
+                    quantContainer.innerHTML = `<button class="text-white px-2 py-1 rounded category-button" style="background-color: var(--expired);" onclick="alterarQuantidade('${categoria}','${item}','${local}',-1)">-</button><input class="quantidade-input mx-2" type="text" pattern="[0-9]*" value="${data.quantidade}" oninput="this.value=this.value.replace(/[^0-9]/g,'')" onchange="confirmarAlteracaoQuantidade('${categoria}','${item}','${local}',this.value,this)"><button class="text-white px-2 py-1 rounded category-button" style="background-color: var(--bg-button);" onclick="alterarQuantidade('${categoria}','${item}','${local}',1)">+</button>`;
+                    td.appendChild(quantContainer);
+                    const vencimentosDiv = document.createElement('div'); vencimentosDiv.className = 'text-sm';
+                    for (let i = 0; i < data.quantidade; i++) {
+                        const status = verificarVencimento(data.vencimentos[i]);
+                        vencimentosDiv.innerHTML += `<div class="flex items-center"><input type="date" class="${status} w-[calc(100%-30px)] p-1 mb-1 border-2 rounded font-bold" value="${data.vencimentos[i] || ''}" onchange="atualizarVencimento('${categoria}','${item}','${local}',${i},this.value)"><button class="text-white px-2 py-1 rounded text-xs ml-1 category-button" style="background-color: var(--expired);" onclick="deletarVencimento('${categoria}','${item}','${local}',${i})">X</button></div>`;
+                    }
+                    td.appendChild(vencimentosDiv);
+                    const fotosDiv = document.createElement('div'); fotosDiv.className = 'fotos text-sm';
+                    if (data.quantidade > 0) fotosDiv.innerHTML = `<input type="file" accept="image/*" multiple onchange="atualizarFotos('${categoria}','${item}','${local}',this.files)">`;
+                    data.fotos.forEach((f, i) => {
+                        if (f) fotosDiv.innerHTML += `<div class="flex items-center"><label>Unidade ${i + 1}: </label><img src="${f}" onclick="abrirModal('${f}','${categoria}','${item}','${local}')"><button class="text-white px-2 py-1 rounded text-xs ml-1 category-button" style="background-color: var(--expired);" onclick="deletarFoto('${categoria}','${item}','${local}',${i})">X</button></div>`;
+                    });
+                    td.appendChild(fotosDiv);
+                    const abertosDiv = document.createElement('div'); abertosDiv.className = 'text-sm';
+                    for (let i = 0; i < data.quantidade; i++) {
+                        abertosDiv.innerHTML += `<label><input type="checkbox" ${data.abertos[i] ? 'checked' : ''} onchange="atualizarAberto('${categoria}','${item}','${local}',${i},this.checked)"> Aberto ${i + 1}</label><br>`;
+                    }
+                    td.appendChild(abertosDiv);
+                    tr.appendChild(td);
+                });
+                tbody.appendChild(tr);
+            });
+            table.appendChild(tbody); grade.appendChild(table);
+            summary.innerHTML = '<h3 class="text-lg font-semibold mb-2" style="color: var(--text-primary);">Resumo de Vencimentos</h3>';
+            const createSection = (title, items, status) => {
+                if (!items.length) return;
+                summary.innerHTML += `<div class="mb-4"><h4 class="text-sm font-semibold">${title}</h4>${items.map(i => `<div class="text-xs pl-2 border-l-4 ${status}">${i.item} em ${i.local} (unidade ${i.index}): <span class="font-bold ${status}">${i.data}</span></div>`).join('')}</div>`;
+            };
+            createSection('Vencidos', expiredItems, 'expired');
+            createSection('Vence em menos de 3 meses', oneMonthItems, 'warning-one-month');
+            createSection('Vence em 3 a 6 meses', threeMonthItems, 'warning-three-months');
+            createSection('Vence em mais de 6 meses', beyondThreeMonthItems, 'beyond-three-months');
+            if (!Object.keys(estoque[categoria]).length || (searchText && !tbody.children.length)) {
+                grade.innerHTML = '<p style="color: var(--text-secondary);">Nenhum item encontrado. Adicione itens em "Gerenciar Itens" ou ajuste a busca.</p>';
+            }
+        }
+
+        function alterarQuantidade(categoria, item, local, delta) {
+            const data = estoque[categoria][item][local];
+            const newQ = Math.max(0, data.quantidade + delta);
+            if (delta < 0 && newQ < data.quantidade) {
+                abrirModalSelectUnit(categoria, item, local, newQ);
+            } else {
+                while (data.vencimentos.length < newQ) data.vencimentos.push('');
+                while (data.vencimentos.length > newQ) data.vencimentos.pop();
+                while (data.abertos.length < newQ) data.abertos.push(false);
+                while (data.abertos.length > newQ) data.abertos.pop();
+                while (data.fotos.length < newQ) data.fotos.push('');
+                while (data.fotos.length > newQ) data.fotos.pop();
+                data.quantidade = newQ;
+                salvarEstoque();
+                mostrarCategoria(categoria);
+                atualizarIndicadores(categoria);
+                document.getElementById('error-message').textContent = '';
+            }
+        }
+
+        function confirmarAlteracaoQuantidade(categoria, item, local, value, input) {
+            const newQ = parseInt(value);
+            if (isNaN(newQ) || newQ < 0) {
+                document.getElementById('error-message').textContent = `Número inválido para ${item} em ${local}.`;
+                input.value = estoque[categoria][item][local].quantidade;
+                return;
+            }
+            const data = estoque[categoria][item][local];
+            if (newQ < data.quantidade) {
+                abrirModalSelectUnit(categoria, item, local, newQ);
+            } else {
+                while (data.vencimentos.length < newQ) data.vencimentos.push('');
+                while (data.vencimentos.length > newQ) data.vencimentos.pop();
+                while (data.abertos.length < newQ) data.abertos.push(false);
+                while (data.abertos.length > newQ) data.abertos.pop();
+                while (data.fotos.length < newQ) data.fotos.push('');
+                while (data.fotos.length > newQ) data.fotos.pop();
+                data.quantidade = newQ;
+                salvarEstoque();
+                mostrarCategoria(categoria);
+                atualizarIndicadores(categoria);
+                document.getElementById('error-message').textContent = '';
+            }
+        }
+
+        function abrirModalSelectUnit(categoria, item, local, newQ) {
+            const modal = document.getElementById('select-unit-modal');
+            const lista = document.getElementById('unit-list');
+            const error = document.getElementById('unit-error');
+            lista.innerHTML = ''; error.textContent = '';
+            const data = estoque[categoria][item][local];
+            if (data.quantidade <= newQ) {
+                error.textContent = 'Quantidade atual já é menor ou igual à solicitada.';
+                return;
+            }
+            for (let i = 0; i < data.quantidade; i++) {
+                const div = document.createElement('div'); div.className = 'flex justify-between p-2 border-b'; div.style.borderColor = 'var(--border-primary)';
+                const span = document.createElement('span'); span.textContent = `Unidade ${i + 1} (Vencimento: ${data.vencimentos[i] || 'N/A'}, Aberto: ${data.abertos[i] ? 'Sim' : 'Não'}, Foto: ${data.fotos[i] ? 'Sim' : 'Não'})`;
+                span.className = 'flex-1'; span.style.color = 'var(--text-primary)';
+                const deleteBtn = document.createElement('button'); deleteBtn.className = 'text-white px-2 py-1 rounded text-xs category-button'; deleteBtn.style.backgroundColor = 'var(--expired)'; deleteBtn.textContent = 'Remover';
+                deleteBtn.onclick = () => showConfirmation(`Tem certeza que deseja remover a unidade ${i + 1} de ${item} em ${local}?`, () => removerUnidade(categoria, item, local, i));
+                div.appendChild(span); div.appendChild(deleteBtn); lista.appendChild(div);
+            }
+            modal.style.display = 'flex';
+        }
+
+        function fecharModalSelectUnit() {
+            document.getElementById('select-unit-modal').style.display = 'none';
+        }
+
+        function removerUnidade(categoria, item, local, index) {
+            const data = estoque[categoria][item][local];
+            data.vencimentos.splice(index, 1);
+            data.abertos.splice(index, 1);
+            data.fotos.splice(index, 1);
+            data.quantidade--;
+            salvarEstoque();
+            mostrarCategoria(categoria);
+            atualizarIndicadores(categoria);
+            closeConfirmation();
+            fecharModalSelectUnit();
+            document.getElementById('error-message').textContent = '';
+        }
+
+        function atualizarAberto(categoria, item, local, index, checked) {
+            estoque[categoria][item][local].abertos[index] = checked;
+            salvarEstoque();
+            mostrarCategoria(categoria);
+            atualizarIndicadores(categoria);
+        }
+
+        function atualizarVencimento(categoria, item, local, index, data) {
+            estoque[categoria][item][local].vencimentos[index] = data;
+            if (data) gerarNotificacaoVencimento(categoria, item, local, index, data);
+            salvarEstoque();
+            mostrarCategoria(categoria);
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            loadTheme();
+            syncData();
+            mostrarCategoria('conservas_vegetais');
+            document.getElementById('theme-toggle').addEventListener('click', toggleTheme);
+            document.getElementById('categoria-select').addEventListener('change', abrirModalGerenciarItens);
+            document.getElementById('search-items').addEventListener('input', () => {
+                const currentCategoria = document.getElementById('titulo-categoria').textContent.toLowerCase().replace(/ /g,'_') || 'conservas_vegetais';
+                mostrarCategoria(currentCategoria);
+            });
+            document.getElementById('search-avisos').addEventListener('input', atualizarListaAvisosCompras);
+            const modalImage = document.getElementById('modal-image');
+            modalImage.addEventListener('click', toggleZoom);
+            modalImage.addEventListener('mousedown', startDrag);
+            modalImage.addEventListener('mousemove', drag);
+            modalImage.addEventListener('mouseup', stopDrag);
+            modalImage.addEventListener('mouseleave', stopDrag);
+
+            // Close modals on Escape key
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') {
+                    document.querySelectorAll('.modal').forEach(modal => {
+                        modal.style.display = 'none';
+                        if (modal.id === 'image-modal') fecharModal();
+                        if (modal.id === 'avisos-compras-modal') fecharModalAvisosCompras();
+                        if (modal.id === 'gerenciar-itens-modal') fecharModalGerenciarItens();
+                        if (modal.id === 'confirmation-modal') closeConfirmation();
+                        if (modal.id === 'select-unit-modal') fecharModalSelectUnit();
+                    });
+                }
+            });
+
+            // Confirmation modal buttons
+            document.getElementById('confirm-yes').addEventListener('click', () => {
+                if (confirmCallback) confirmCallback();
+            });
+            document.getElementById('confirm-no').addEventListener('click', closeConfirmation);
+
+            // Periodic sync
+            setInterval(syncData, 10000);
+        });
+    </script>
+</body>
+</html>
